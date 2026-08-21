@@ -34,6 +34,17 @@ class PublicClientApplication {
     /// different authorities.
     String? authority,
 
+    /// Claims request from a Conditional Access challenge, as a JSON string.
+    ///
+    /// When a resource server answers 401 with
+    /// `WWW-Authenticate: Bearer error="insufficient_claims", claims="<base64>"`,
+    /// decode that value and pass it here. Without it the authorization
+    /// request omits the requirement and returns the same insufficient token,
+    /// so the caller ends up in a sign-in loop that can never succeed.
+    ///
+    /// See https://learn.microsoft.com/entra/identity-platform/claims-challenge
+    String? claims,
+
     /// Custom WebView configuration for iOS/MacOS platforms.
     /// For iOS, it is only used when broker is webView.
     CustomWebViewConfig? customWebViewConfig,
@@ -44,6 +55,7 @@ class PublicClientApplication {
       'prompt': prompt.name,
       'loginHint': loginHint,
       'authority': authority,
+      'claims': claims,
       'broker': Broker.msAuthenticator.name,
       if (Platform.isIOS || Platform.isMacOS)
         'customWebViewConfig': customWebViewConfig?.toJson(),
@@ -77,6 +89,14 @@ class PublicClientApplication {
     /// Required for B2C scenarios where you want to refresh tokens using
     /// a different policy than the one used for initial authentication.
     String? authority,
+
+    /// Claims request from a Conditional Access challenge, as a JSON string.
+    ///
+    /// A silent call carrying claims will usually fail with
+    /// [MsalUiRequiredException]; that is expected. The caller should then fall
+    /// back to [acquireToken] with the same claims, because only an interactive
+    /// request can satisfy a fresh-MFA requirement.
+    String? claims,
   }) async {
     assert(scopes.isNotEmpty, 'Scopes can not be empty');
     if (this is MultipleAccountPca) {
@@ -89,6 +109,7 @@ class PublicClientApplication {
       'scopes': scopes,
       'identifier': identifier,
       'authority': authority,
+      'claims': claims,
     };
     try {
       final result =
