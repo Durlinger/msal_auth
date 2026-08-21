@@ -6,6 +6,7 @@ import com.microsoft.identity.client.AcquireTokenSilentParameters
 import com.microsoft.identity.client.MultipleAccountPublicClientApplication
 import com.microsoft.identity.client.Prompt
 import com.microsoft.identity.client.SingleAccountPublicClientApplication
+import com.microsoft.identity.client.claims.ClaimsRequest
 import com.microsoft.identity.client.configuration.AccountMode
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -54,6 +55,7 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
                 val promptArg: String? = call.argument("prompt")
                 val loginHint: String? = call.argument("loginHint")
                 val authority: String? = call.argument("authority")
+                val claims: String? = call.argument("claims")
 
                 val prompt: Prompt = when (promptArg) {
                     "selectAccount" -> Prompt.SELECT_ACCOUNT
@@ -62,14 +64,19 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
                     "create" -> Prompt.CREATE
                     else -> Prompt.WHEN_REQUIRED
                 }
-                Thread { acquireToken(scopes, prompt, loginHint, authority, result) }.start()
+                Thread {
+                    acquireToken(scopes, prompt, loginHint, authority, claims, result)
+                }.start()
             }
 
             "acquireTokenSilent" -> {
                 val scopes: List<String> = call.argument<List<String>>("scopes")!!.toList()
                 val identifier: String? = call.argument("identifier")
                 val authority: String? = call.argument("authority")
-                Thread { acquireTokenSilent(scopes, identifier, authority, result) }.start()
+                val claims: String? = call.argument("claims")
+                Thread {
+                    acquireTokenSilent(scopes, identifier, authority, claims, result)
+                }.start()
             }
 
             "currentAccount" -> getCurrentAccount(result)
@@ -146,6 +153,7 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
         prompt: Prompt,
         loginHint: String?,
         authority: String?,
+        claims: String?,
         result: MethodChannel.Result
     ) {
         if (!msal.isPcaInitialized()) {
@@ -162,6 +170,8 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
                 .apply {
                     // If authority is provided, set it to the builder
                     if (authority != null) fromAuthority(authority)
+                    // Conditional Access claims challenge, if any.
+                    parseClaims(claims)?.let { withClaims(it) }
                 }
                 .withCallback(msal.authenticationCallback(result))
 
@@ -178,10 +188,25 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
      * @param authority authority URL to override cached account's authority.
      * @param result the result of the method call.
      */
+    /**
+     * Parses a claims request coming from a Conditional Access challenge.
+     *
+     * Throws when the string is present but unparsable. Dropping it silently
+     * would send an authorization request without the requirement, the server
+     * would answer 401 again, and the user would be asked to sign in over and
+     * over without it ever succeeding.
+     */
+    private fun parseClaims(claims: String?): ClaimsRequest? {
+        if (claims.isNullOrBlank()) return null
+        return ClaimsRequest.getClaimsRequestFromJsonString(claims)
+            ?: throw IllegalArgumentException("Invalid claims request: $claims")
+    }
+
     private fun acquireTokenSilent(
         scopes: List<String>,
         identifier: String? = null,
         authority: String?,
+        claims: String?,
         result: MethodChannel.Result
     ) {
         if (!msal.isPcaInitialized()) {
@@ -197,6 +222,7 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
                     builder.withScopes(scopes.toList())
                         .forAccount(currentAccount)
                         .fromAuthority(authority ?: currentAccount.authority)
+                        .apply { parseClaims(claims)?.let { withClaims(it) } }
                         .withCallback(msal.silentAuthenticationCallback(result))
                     val acquireTokenParameters = builder.build()
                     msal.iPublicClientApplication.acquireTokenSilentAsync(acquireTokenParameters)
@@ -210,6 +236,7 @@ class MsalAuthHandler(private val msal: MsalAuth) : MethodChannel.MethodCallHand
                 builder.withScopes(scopes.toList())
                     .forAccount(account)
                     .fromAuthority(authority ?: account.authority)
+                    .apply { parseClaims(claims)?.let { withClaims(it) } }
                     .withCallback(msal.silentAuthenticationCallback(result))
                 val acquireTokenParameters = builder.build()
                 msal.iPublicClientApplication.acquireTokenSilentAsync(acquireTokenParameters)

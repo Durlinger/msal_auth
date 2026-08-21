@@ -1,3 +1,18 @@
+## 3.5.3+durlinger.1
+
+Fork van Durlinger. Zie https://github.com/Durlinger/msal_auth.
+
+- `acquireToken` en `acquireTokenSilent` accepteren nu een `claims`-parameter en
+  geven die door aan de native MSAL-SDK's (`ClaimsRequest` op Android,
+  `MSALClaimsRequest` op iOS). Nodig om een Conditional Access
+  authentication context te kunnen afhandelen: zonder de claims levert een
+  nieuwe login hetzelfde ontoereikende token op en komt de gebruiker in een
+  inloglus die nooit slaagt.
+- Onparseerbare claims gooien een fout in plaats van stil te vallen, om diezelfde
+  lus te voorkomen.
+
+Deze fork verdwijnt zodra upstream de claims-parameter zelf ondersteunt.
+
 ## 3.5.3
 - Pin the Swift MSAL library to `2.14.1` and prevent updates beyond this version to avoid native min deployment target breaking changes. [#issue/151](https://github.com/nayanAubie/msal_auth/issues/151)
 

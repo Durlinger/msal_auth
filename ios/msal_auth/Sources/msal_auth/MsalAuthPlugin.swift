@@ -104,11 +104,13 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
 
             let loginHint = dict["loginHint"] as? String
             let authority = dict["authority"] as? String
-            
+            let claims = dict["claims"] as? String
+
             let customWebViewConfig = dict["customWebViewConfig"] as? [String: Any]
 
             acquireToken(
                 scopes: scopes, promptType: promptType, loginHint: loginHint, authority: authority,
+                claims: claims,
                 customWebViewConfig: customWebViewConfig,
                 result: result)
         case "acquireTokenSilent":
@@ -121,9 +123,11 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
 
             let identifier = dict["identifier"] as? String
             let authority = dict["authority"] as? String
+            let claims = dict["claims"] as? String
 
             acquireTokenSilent(
-                scopes: scopes, identifier: identifier, authority: authority, result: result)
+                scopes: scopes, identifier: identifier, authority: authority, claims: claims,
+                result: result)
 
         case "currentAccount": getCurrentAccount(result: result)
 
@@ -236,6 +240,7 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
     ///   - result: Result of the method call.
     private func acquireToken(
         scopes: [String], promptType: MSALPromptType, loginHint: String?, authority: String?,
+        claims: String?,
         customWebViewConfig: [String: Any]?,
         result: @escaping FlutterResult
     ) {
@@ -280,6 +285,16 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
 
         tokenParams.promptType = promptType
         tokenParams.loginHint = loginHint
+
+        // Conditional Access claims challenge, if any.
+        if let claims, !claims.isEmpty {
+            do {
+                tokenParams.claimsRequest = try MSALClaimsRequest(jsonString: claims)
+            } catch let error as NSError {
+                setMsalError(error: error, result: result)
+                return
+            }
+        }
         
         if let authority = authority {
             do {
@@ -314,7 +329,7 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
     ///   - authority: Authority URL to override cached account's authority.
     ///   - result: Result of the method call.
     private func acquireTokenSilent(
-        scopes: [String], identifier: String? = nil, authority: String?,
+        scopes: [String], identifier: String? = nil, authority: String?, claims: String? = nil,
         result: @escaping FlutterResult
     ) {
         guard let pca = MsalAuth.publicClientApplication else {
@@ -328,7 +343,7 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
                     self.setNoCurrentAccountError(result: result)
                     return
                 }
-                self.executeSilentRequest(pca: pca, account: currentAccount, scopes: scopes, authority: authority, result: result)
+                self.executeSilentRequest(pca: pca, account: currentAccount, scopes: scopes, authority: authority, claims: claims, result: result)
             }
             return
         }
@@ -503,9 +518,19 @@ extension MsalAuthPlugin {
         account: MSALAccount,
         scopes: [String],
         authority: String?,
+        claims: String? = nil,
         result: @escaping FlutterResult
     ) {
         let silentParams = MSALSilentTokenParameters(scopes: scopes, account: account)
+
+        if let claims, !claims.isEmpty {
+            do {
+                silentParams.claimsRequest = try MSALClaimsRequest(jsonString: claims)
+            } catch let error as NSError {
+                setMsalError(error: error, result: result)
+                return
+            }
+        }
 
         if let authority {
             do {
