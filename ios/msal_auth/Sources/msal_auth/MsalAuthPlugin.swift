@@ -288,12 +288,17 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
 
         // Conditional Access claims challenge, if any.
         if let claims, !claims.isEmpty {
-            do {
-                tokenParams.claimsRequest = try MSALClaimsRequest(jsonString: claims)
-            } catch let error as NSError {
-                setMsalError(error: error, result: result)
+            // `initWithJsonString:error:` is een ObjC-initializer die een
+            // non-null instancetype teruggeeft met een NSError**. Swift houdt
+            // die foutparameter en maakt er dus geen throwing initializer van;
+            // `try` compileert hier niet.
+            var claimsError: NSError?
+            let request = MSALClaimsRequest(jsonString: claims, error: &claimsError)
+            if let claimsError {
+                setMsalError(error: claimsError, result: result)
                 return
             }
+            tokenParams.claimsRequest = request
         }
         
         if let authority = authority {
@@ -524,12 +529,14 @@ extension MsalAuthPlugin {
         let silentParams = MSALSilentTokenParameters(scopes: scopes, account: account)
 
         if let claims, !claims.isEmpty {
-            do {
-                silentParams.claimsRequest = try MSALClaimsRequest(jsonString: claims)
-            } catch let error as NSError {
-                setMsalError(error: error, result: result)
+            // Zie de opmerking bij acquireToken: geen throwing initializer.
+            var claimsError: NSError?
+            let request = MSALClaimsRequest(jsonString: claims, error: &claimsError)
+            if let claimsError {
+                setMsalError(error: claimsError, result: result)
                 return
             }
+            silentParams.claimsRequest = request
         }
 
         if let authority {
