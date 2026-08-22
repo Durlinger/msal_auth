@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "msal_auth",
     platforms: [
-        .iOS("16.0")
+        .iOS("17.0")
     ],
     products: [
         .library(name: "msal-auth", targets: ["msal_auth"])
