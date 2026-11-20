@@ -343,13 +343,13 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
         }
 
         if MsalAuth.pcaType == PublicClientApplicationType.single {
-            getCurrentAccount { currentAccount in
+            getCurrentAccount(completion: { currentAccount in
                 guard let currentAccount else {
                     self.setNoCurrentAccountError(result: result)
                     return
                 }
                 self.executeSilentRequest(pca: pca, account: currentAccount, scopes: scopes, authority: authority, claims: claims, result: result)
-            }
+            })
             return
         }
         
@@ -401,7 +401,7 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
             return
         }
         
-        getCurrentAccount { currentAccount in
+        getCurrentAccount(completion: { currentAccount in
             guard let currentAccount else {
                 self.setNoCurrentAccountError(result: result)
                 return
@@ -419,7 +419,7 @@ public class MsalAuthPlugin: NSObject, FlutterPlugin, FlutterSceneLifeCycleDeleg
                     self.setMsalError(error: error, result: result)
                 }
             }
-        }
+        })
     }
 
     /// Returns account with given identifier. used with multiple account mode.
@@ -671,8 +671,13 @@ extension MsalAuthPlugin {
                 flutterErrorCode = "SERVER_ERROR"
             case .insufficientDeviceStrength:
                 flutterErrorCode = "INSUFFICIENT_DEVICE_STRENGTH"
+            case .mdmEnrollmentCompletedNeedsRetry:
+                flutterErrorCode = "MDM_ENROLLMENT_RETRY"
+            case .serverInvalidRequestResetPasswordRequired:
+                flutterErrorCode = "PASSWORD_RESET_REQUIRED"
             @unknown default:
-                break
+                // Never leave the code empty: `flutterErrorCode` is force-unwrapped.
+                flutterErrorCode = "UNKNOWN_MSAL_ERROR"
             }
         } else {
             flutterErrorCode = error.domain
